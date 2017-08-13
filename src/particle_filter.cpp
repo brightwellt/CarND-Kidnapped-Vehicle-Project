@@ -25,9 +25,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 	
-	num_particles = 200;
+	num_particles = 20; // Have had this working with as low as 8
 	default_random_engine gen;
-	//particles = new vector<Particle>[num_particles];
 	
 	// These lines create normal (Gaussian) distributions for x, y, theta
 	normal_distribution<double> dist_x(x, std[0]);
@@ -41,7 +40,6 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
         sample_y = dist_y(gen);
         sample_theta = dist_theta(gen);
 		
-		// Print your samples to the terminal.
 		//cout << "Sample " << i + 1 << " " << sample_x << " " << sample_y << " " << sample_theta << endl;
 		Particle particle;
 		particle.id = i;
@@ -53,9 +51,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 		weights.push_back(1);
 		
 		particles.push_back(particle);
-		
 	}
-	
 	is_initialized = true; // Finally initialize the particle filter
 }
 
@@ -77,14 +73,13 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	for (int i = 0; i < num_particles; i++) {
 		Particle p = particles[i];
 		
-		if (yaw_rate == 0)
-		{
+		if (yaw_rate == 0) {
 			p.x = p.x + velocity * delta_t * cos(p.theta) + dist_x(gen);
 			p.y = p.y + velocity * delta_t * sin(p.theta) + dist_y(gen);
 			p.theta = p.theta + dist_theta(gen);
 		}
-		else
-		{	double vel_yaw = velocity / yaw_rate;
+		else {	
+			double vel_yaw = velocity / yaw_rate;
 			p.x = p.x + vel_yaw * (sin(p.theta + delta_theta) - sin(p.theta)) + dist_x(gen);
 			p.y = p.y + vel_yaw * (cos(p.theta) - cos(p.theta + delta_theta)) + dist_y(gen);
 			p.theta = p.theta + delta_theta + dist_theta(gen);
@@ -93,10 +88,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 		
 		//cout << "Particle " << i << "\tx: " << p.x << "\ty: " << p.y << "\tp.theta: " << p.theta << endl;
 	}
-	
-	
-	
-	// 
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
@@ -104,6 +95,7 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
+	// Decided not to use this function.
 	for (auto& observation : observations) {
 		
 		double lowest_distance = 999999.;
@@ -143,18 +135,17 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	// Gives the first matrix with an extra element of 1.
 	weights.clear();
 	
-	
 	for (int p_i = 0; p_i < num_particles; p_i++) {
 		Particle particle = particles[p_i];
 		//cout << "Particle " << p_i << "\tx: " << particle.x << "\ty: " << particle.y << "\ttheta: " << particle.theta << endl;
-		particle.associations.clear();
+		particle.associations.clear(); // Manually clearing rather than using SetAssociations.
 		particle.sense_x.clear();
 		particle.sense_y.clear();
 		
 		vector<LandmarkObs> mapped_observations;
 		for (auto& observation : observations) {
-		//	observation.x = new value;
-		// Convert to particle coordinates
+		
+			// particle coordinates + observations = mapped_observations
 			LandmarkObs obsv;
 			obsv.x = observation.x * cos(particle.theta) - observation.y * sin(particle.theta) + particle.x;
 			obsv.y = observation.x * sin(particle.theta) + observation.y * cos(particle.theta) + particle.y;
@@ -169,27 +160,19 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 					obsv.id = landmark.id_i;
 				}
 			}
-			
 			mapped_observations.push_back(obsv);
-			
-			// At this point our observation should know which landmark it is associated with.
-			// Calculate the weight.
-			 
-			
 		}
+		// I could combine these two loops but my fiancee is sat here begging me not to mess with code that works.
+		
 		// At this point p_observations should be a list of landmark ids for where we think we are 
 		// We can pair those up with the landmarks and work out the new weights
 		particle.weight = 1.0;
-		for(int i = 0; i < mapped_observations.size(); i++){
+		for(int i = 0; i < mapped_observations.size(); i++) {
 			int association = mapped_observations[i].id;
 			double mapped_x = mapped_observations[i].x;
 			double mapped_y = mapped_observations[i].y;
 			
-			
-			
-			if (association != 0)
-			{
-				
+			if (association != 0) {
 				double mu_x = map_landmarks.landmark_list[association-1].x_f;
 				double mu_y = map_landmarks.landmark_list[association-1].y_f;
 				double sig_x = std_landmark[0];
@@ -197,29 +180,25 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				double gauss_norm = (1/(2 * M_PI * sig_x * sig_y));
 				double exponent = (pow((mapped_x - mu_x), 2.0) / (2 * sig_x * sig_x)) + (pow((mapped_y - mu_y), 2.0) / (2 * sig_y * sig_y));
 				long double new_weight = gauss_norm * exp(-exponent);
-				//long double multiplier = 1/(2 * M_PI * std_landmark[0]*std_landmark[1])*exp(-(pow(meas_x-0)));
+
 				if (new_weight > 0) {
 					particle.weight *= new_weight;
 				}
-				else
-				{
+				else {
 					particle.weight = 0;
 				}
 				//cout << "Mapped Observations, i " << i << "\tid: " << association << "\tx: " << mapped_x << "\ty: " << mapped_y << "\tmu_x: " << mu_x << "\tmu_y: "  << mu_y << endl;
 				//cout << "Gauss_norm: " << gauss_norm << "\texponent: " << exponent << "\tnew_weight:" << new_weight << endl;
 			}
-			else
-			{
-				particle.weight = 0;
+			else {
+				particle.weight = 0; // Particle doesn't match observations - essentially reject it
 			}
 			particle.associations.push_back(association+1);
 			particle.sense_x.push_back(mapped_x);
 			particle.sense_y.push_back(mapped_y);
 		}
-		//p.x = p.x + velocity_dt * (sin(p.theta + delta_theta) - sin(p.theta)) + dist_x(gen);
-		//p.y = p.y + velocity_dt * (cos(p.theta) - cos(p.theta + delta_theta)) + dist_y(gen);
-		//p.theta = p.theta + delta_theta + dist_theta(gen);
-		
+
+		// At this point you could normalise weights but we don't need to thanks to discrete_distribution
 		weights.push_back(particle.weight);
 		// 
 	}
@@ -234,12 +213,10 @@ void ParticleFilter::resample() {
 	
 	vector<Particle> resample_particles;
 	
-	for (int i = 0; i < num_particles; i++)
-	{
+	for (int i = 0; i < num_particles; i++)	{
 		resample_particles.push_back(particles[distribution(gen)]);
 	}
 	particles = resample_particles;
-
 }
 
 Particle ParticleFilter::SetAssociations(Particle particle, std::vector<int> associations, std::vector<double> sense_x, std::vector<double> sense_y)
