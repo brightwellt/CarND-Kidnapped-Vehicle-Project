@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 	
-	num_particles = 10;
+	num_particles = 200;
 	default_random_engine gen;
 	//particles = new vector<Particle>[num_particles];
 	
@@ -90,7 +90,11 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 			p.theta = p.theta + delta_theta + dist_theta(gen);
 		}
 		particles[i] = p;
+		
+		//cout << "Particle " << i << "\tx: " << p.x << "\ty: " << p.y << "\tp.theta: " << p.theta << endl;
 	}
+	
+	
 	
 	// 
 }
@@ -140,8 +144,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	weights.clear();
 	
 	
-	for (auto particle: particles) {
-		
+	for (int p_i = 0; p_i < num_particles; p_i++) {
+		Particle particle = particles[p_i];
+		//cout << "Particle " << p_i << "\tx: " << particle.x << "\ty: " << particle.y << "\ttheta: " << particle.theta << endl;
 		particle.associations.clear();
 		particle.sense_x.clear();
 		particle.sense_y.clear();
@@ -180,11 +185,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			double mapped_x = mapped_observations[i].x;
 			double mapped_y = mapped_observations[i].y;
 			
+			
+			
 			if (association != 0)
 			{
 				
-				double mu_x = map_landmarks.landmark_list[association].x_f;
-				double mu_y = map_landmarks.landmark_list[association].y_f;
+				double mu_x = map_landmarks.landmark_list[association-1].x_f;
+				double mu_y = map_landmarks.landmark_list[association-1].y_f;
 				double sig_x = std_landmark[0];
 				double sig_y = std_landmark[1];
 				double gauss_norm = (1/(2 * M_PI * sig_x * sig_y));
@@ -194,7 +201,16 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				if (new_weight > 0) {
 					particle.weight *= new_weight;
 				}
-					
+				else
+				{
+					particle.weight = 0;
+				}
+				//cout << "Mapped Observations, i " << i << "\tid: " << association << "\tx: " << mapped_x << "\ty: " << mapped_y << "\tmu_x: " << mu_x << "\tmu_y: "  << mu_y << endl;
+				//cout << "Gauss_norm: " << gauss_norm << "\texponent: " << exponent << "\tnew_weight:" << new_weight << endl;
+			}
+			else
+			{
+				particle.weight = 0;
 			}
 			particle.associations.push_back(association+1);
 			particle.sense_x.push_back(mapped_x);
